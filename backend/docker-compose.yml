@@ -1,0 +1,102 @@
+version: '3.8'
+
+services:
+  # MongoDB database
+  mongodb:
+    image: mongo:6.0
+    container_name: api-shield-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
+      - MONGO_INITDB_DATABASE=apishield
+    volumes:
+      - mongodb_data:/data/db
+      - ./mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - api-shield-network
+    restart: unless-stopped
+    command: mongod --auth
+
+  # MongoDB Express (Web UI)
+  mongo-express:
+    image: mongo-express:latest
+    container_name: api-shield-mongo-express
+    ports:
+      - "8081:8081"
+    environment:
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=admin
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_ROOT_PASSWORD}
+      - ME_CONFIG_MONGODB_SERVER=mongodb
+      - ME_CONFIG_BASICAUTH_USERNAME=admin
+      - ME_CONFIG_BASICAUTH_PASSWORD=${MONGO_EXPRESS_PASSWORD}
+    depends_on:
+      - mongodb
+    networks:
+      - api-shield-network
+    restart: unless-stopped
+
+  # Redis for caching and rate limiting
+  redis:
+    image: redis:alpine
+    container_name: api-shield-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - api-shield-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  # Node.js API
+  api:
+    build: .
+    container_name: api-shield-backend
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - CLIENT_URL=http://localhost:3001
+      - JWT_SECRET=${JWT_SECRET}
+      - MONGODB_URI=mongodb://admin:${MONGO_PASSWORD}@mongodb:27017/apishield?authSource=admin
+      - REDIS_URL=redis://redis:6379
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - api-shield-network
+    restart: unless-stopped
+    command: npm start
+
+  # Nginx reverse proxy
+  nginx:
+    image: nginx:alpine
+    container_name: api-shield-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./config/nginx.conf:/etc/nginx/nginx.conf
+      - ./config/security-headers.conf:/etc/nginx/security-headers.conf
+      - ./config/rate-limiting.conf:/etc/nginx/rate-limiting.conf
+      - ./logs/nginx:/var/log/nginx
+      - ./ssl:/etc/ssl/certs
+    depends_on:
+      - api
+    networks:
+      - api-shield-network
+    restart: unless-stopped
+
+networks:
+  api-shield-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+  redis_data:

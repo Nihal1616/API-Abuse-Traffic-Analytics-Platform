@@ -49,6 +49,7 @@ const auditLogSchema = new mongoose.Schema(
         "system_restart",
         "system_shutdown",
         "maintenance_mode",
+        "rule_update",
       ],
       index: true,
     },

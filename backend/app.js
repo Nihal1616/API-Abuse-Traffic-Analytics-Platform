@@ -53,7 +53,7 @@ app.use(
 //   optionsSuccessStatus: 200,
 // };
 const corsOptions = {
-  origin: ["http://localhost:8080"],
+  origin: ["http://localhost:8080", "http://localhost:3001", "http://localhost:3002", "http://localhost:3003", "http://localhost:3004", "http://localhost:3005", "http://localhost:3006", "http://localhost:3007", "http://localhost:3008", "http://localhost:3009"],
   credentials: true,
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],

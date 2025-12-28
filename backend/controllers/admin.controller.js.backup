@@ -97,35 +97,9 @@ class AdminController {
     // Mock audit logs
     this.auditLogs = [];
     this.initializeAuditLogs();
-
-    // Bind methods to preserve 'this' context
-    this.login = this.login.bind(this);
-    this.logout = this.logout.bind(this);
-    this.getSession = this.getSession.bind(this);
-    this.getConfig = this.getConfig.bind(this);
-    this.updateConfig = this.updateConfig.bind(this);
-    this.getSecurityConfig = this.getSecurityConfig.bind(this);
-    this.getUsers = this.getUsers.bind(this);
-    this.createUser = this.createUser.bind(this);
-    this.updateUser = this.updateUser.bind(this);
-    this.deleteUser = this.deleteUser.bind(this);
-    this.getAuditLogs = this.getAuditLogs.bind(this);
-    this.getAuditLog = this.getAuditLog.bind(this);
-    this.exportAuditLogs = this.exportAuditLogs.bind(this);
-    this.getSystemHealth = this.getSystemHealth.bind(this);
-    this.getSystemStats = this.getSystemStats.bind(this);
-    this.getSystemLogs = this.getSystemLogs.bind(this);
-    this.getSystemAlerts = this.getSystemAlerts.bind(this);
-    this.createBackup = this.createBackup.bind(this);
-    this.restoreBackup = this.restoreBackup.bind(this);
-    this.getBackups = this.getBackups.bind(this);
-    this.getThreatIntelligence = this.getThreatIntelligence.bind(this);
-    this.addThreatIntel = this.addThreatIntel.bind(this);
-    this.removeThreatIntel = this.removeThreatIntel.bind(this);
-    this.getRateLimits = this.getRateLimits.bind(this);
-    this.updateRateLimits = this.updateRateLimits.bind(this);
   }
 
+  // Initialize mock audit logs
   initializeAuditLogs() {
     const actions = [
       "login",
@@ -161,22 +135,6 @@ class AdminController {
 
     // Sort by timestamp (newest first)
     this.auditLogs.sort((a, b) => b.timestamp - a.timestamp);
-  }
-
-  addAuditLog(logEntry) {
-    const auditEntry = {
-      id: uuidv4(),
-      timestamp: new Date(),
-      ...logEntry,
-    };
-    this.auditLogs.unshift(auditEntry);
-
-    // Keep only last 100 entries
-    if (this.auditLogs.length > 100) {
-      this.auditLogs.pop();
-    }
-
-    logger.info("Audit log:", auditEntry);
   }
 
   // Admin login
@@ -264,7 +222,10 @@ class AdminController {
   // Admin logout
   async logout(req, res) {
     try {
-      // Log the logout
+      const token = req.headers.authorization?.replace("Bearer ", "");
+
+      // In production, you might blacklist the token
+
       this.addAuditLog({
         userId: req.user.email,
         action: "logout",
@@ -288,18 +249,16 @@ class AdminController {
     }
   }
 
-  // Get admin session
+  // Get session info
   async getSession(req, res) {
     try {
       res.json({
         success: true,
         data: {
-          user: {
-            id: req.user.id,
-            email: req.user.email,
-            name: req.user.name,
-            role: req.user.role,
-            permissions: req.user.permissions,
+          user: req.user,
+          session: {
+            issuedAt: new Date(),
+            expiresIn: "24h",
           },
         },
       });
@@ -318,6 +277,7 @@ class AdminController {
       res.json({
         success: true,
         data: this.systemConfig,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Get config error:", error);
@@ -333,8 +293,15 @@ class AdminController {
     try {
       const updates = req.body;
 
-      // Merge updates into system config
-      Object.assign(this.systemConfig, updates);
+      if (!updates || typeof updates !== "object") {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid configuration data",
+        });
+      }
+
+      // Deep merge updates
+      this.deepMerge(this.systemConfig, updates);
 
       // Log the update
       this.addAuditLog({
@@ -345,12 +312,14 @@ class AdminController {
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: updates,
       });
 
       res.json({
         success: true,
         data: this.systemConfig,
         message: "Configuration updated successfully",
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Update config error:", error);
@@ -367,6 +336,7 @@ class AdminController {
       res.json({
         success: true,
         data: this.systemConfig.security,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Get security config error:", error);
@@ -387,11 +357,14 @@ class AdminController {
         role: user.role,
         lastLogin: user.lastLogin,
         createdAt: user.createdAt,
+        permissions: user.permissions,
       }));
 
       res.json({
         success: true,
         data: users,
+        count: users.length,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Get users error:", error);
@@ -405,7 +378,7 @@ class AdminController {
   // Create new user
   async createUser(req, res) {
     try {
-      const { email, password, name, role } = req.body;
+      const { email, password, name, role, permissions } = req.body;
 
       if (!email || !password || !name || !role) {
         return res.status(400).json({
@@ -415,21 +388,24 @@ class AdminController {
       }
 
       if (this.adminUsers.has(email)) {
-        return res.status(409).json({
+        return res.status(400).json({
           success: false,
           error: "User already exists",
         });
       }
 
+      // Hash password (in production)
+      const passwordHash = await bcrypt.hash(password, 12);
+
       const newUser = {
         id: uuidv4(),
         email,
-        passwordHash: password, // In production, hash this
+        passwordHash,
         name,
         role,
+        permissions: permissions || ["view"],
         lastLogin: null,
         createdAt: new Date(),
-        permissions: role === "admin" ? ["all"] : ["view", "monitor", "block"],
       };
 
       this.adminUsers.set(email, newUser);
@@ -439,10 +415,11 @@ class AdminController {
         userId: req.user.email,
         action: "user_create",
         resource: "/api/admin/users",
-        details: `User ${email} created`,
+        details: `Created new user: ${email}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { email, role },
       });
 
       res.status(201).json({
@@ -468,7 +445,7 @@ class AdminController {
   // Update user
   async updateUser(req, res) {
     try {
-      const { userId } = req.params;
+      const userId = req.params.id;
       const updates = req.body;
 
       // Find user by ID
@@ -490,18 +467,39 @@ class AdminController {
         });
       }
 
+      // Don't allow self-demotion
+      if (
+        req.user.id === userId &&
+        updates.role &&
+        updates.role !== userToUpdate.role
+      ) {
+        return res.status(403).json({
+          success: false,
+          error: "Cannot change your own role",
+        });
+      }
+
       // Update user
-      Object.assign(userToUpdate, updates);
+      if (updates.name) userToUpdate.name = updates.name;
+      if (updates.role) userToUpdate.role = updates.role;
+      if (updates.permissions) userToUpdate.permissions = updates.permissions;
+
+      if (updates.password) {
+        userToUpdate.passwordHash = await bcrypt.hash(updates.password, 12);
+      }
+
+      userToUpdate.updatedAt = new Date();
 
       // Log the update
       this.addAuditLog({
         userId: req.user.email,
         action: "user_update",
-        resource: "/api/admin/users",
-        details: `User ${userEmail} updated`,
+        resource: `/api/admin/users/${userId}`,
+        details: `Updated user: ${userEmail}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: updates,
       });
 
       res.json({
@@ -511,7 +509,7 @@ class AdminController {
           email: userEmail,
           name: userToUpdate.name,
           role: userToUpdate.role,
-          lastLogin: userToUpdate.lastLogin,
+          updatedAt: userToUpdate.updatedAt,
         },
         message: "User updated successfully",
       });
@@ -527,7 +525,7 @@ class AdminController {
   // Delete user
   async deleteUser(req, res) {
     try {
-      const { userId } = req.params;
+      const userId = req.params.id;
 
       // Find user by ID
       let userToDelete = null;
@@ -545,6 +543,14 @@ class AdminController {
         return res.status(404).json({
           success: false,
           error: "User not found",
+        });
+      }
+
+      // Don't allow self-deletion
+      if (req.user.id === userId) {
+        return res.status(403).json({
+          success: false,
+          error: "Cannot delete your own account",
         });
       }
 
@@ -569,11 +575,12 @@ class AdminController {
       this.addAuditLog({
         userId: req.user.email,
         action: "user_delete",
-        resource: "/api/admin/users",
-        details: `User ${userEmail} deleted`,
+        resource: `/api/admin/users/${userId}`,
+        details: `Deleted user: ${userEmail}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { deletedUser: userEmail },
       });
 
       res.json({
@@ -592,16 +599,65 @@ class AdminController {
   // Get audit logs
   async getAuditLogs(req, res) {
     try {
-      const limit = parseInt(req.query.limit) || 50;
-      const offset = parseInt(req.query.offset) || 0;
+      const {
+        page = 1,
+        limit = 50,
+        action,
+        userId,
+        startDate,
+        endDate,
+        status,
+      } = req.query;
 
-      const logs = this.auditLogs.slice(offset, offset + limit);
+      let filteredLogs = [...this.auditLogs];
+
+      // Apply filters
+      if (action) {
+        filteredLogs = filteredLogs.filter((log) => log.action === action);
+      }
+
+      if (userId) {
+        filteredLogs = filteredLogs.filter((log) => log.userId === userId);
+      }
+
+      if (status) {
+        filteredLogs = filteredLogs.filter((log) => log.status === status);
+      }
+
+      if (startDate) {
+        const start = new Date(startDate);
+        filteredLogs = filteredLogs.filter(
+          (log) => new Date(log.timestamp) >= start
+        );
+      }
+
+      if (endDate) {
+        const end = new Date(endDate);
+        filteredLogs = filteredLogs.filter(
+          (log) => new Date(log.timestamp) <= end
+        );
+      }
+
+      // Pagination
+      const total = filteredLogs.length;
+      const totalPages = Math.ceil(total / limit);
+      const startIndex = (page - 1) * limit;
+      const endIndex = startIndex + parseInt(limit);
+
+      const paginatedLogs = filteredLogs.slice(startIndex, endIndex);
 
       res.json({
         success: true,
-        data: logs,
-        count: logs.length,
-        total: this.auditLogs.length,
+        data: paginatedLogs,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages,
+          hasNext: endIndex < total,
+          hasPrev: startIndex > 0,
+        },
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Get audit logs error:", error);
@@ -612,11 +668,11 @@ class AdminController {
     }
   }
 
-  // Get audit log by ID
+  // Get specific audit log
   async getAuditLog(req, res) {
     try {
-      const { id } = req.params;
-      const log = this.auditLogs.find((l) => l.id === id);
+      const logId = req.params.id;
+      const log = this.auditLogs.find((l) => l.id === logId);
 
       if (!log) {
         return res.status(404).json({
@@ -641,13 +697,31 @@ class AdminController {
   // Export audit logs
   async exportAuditLogs(req, res) {
     try {
-      const csv = this.auditLogs.map(log =>
-        `${log.id},${log.timestamp.toISOString()},${log.userId},${log.action},${log.resource},${log.details},${log.status}`
-      ).join('\n');
+      const format = req.query.format || "json";
+      const filteredLogs = this.applyAuditLogFilters(req.query);
 
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', 'attachment; filename="audit-logs.csv"');
-      res.send(`id,timestamp,userId,action,resource,details,status\n${csv}`);
+      if (format === "csv") {
+        let csv =
+          "Timestamp,User ID,Action,Resource,Details,IP,User Agent,Status\n";
+
+        filteredLogs.forEach((log) => {
+          csv += `${log.timestamp},${log.userId},${log.action},${log.resource},"${log.details}",${log.ip},${log.userAgent},${log.status}\n`;
+        });
+
+        res.setHeader("Content-Type", "text/csv");
+        res.setHeader(
+          "Content-Disposition",
+          `attachment; filename=audit_logs_${Date.now()}.csv`
+        );
+        return res.send(csv);
+      }
+
+      res.json({
+        success: true,
+        data: filteredLogs,
+        count: filteredLogs.length,
+        exportedAt: new Date().toISOString(),
+      });
     } catch (error) {
       logger.error("Export audit logs error:", error);
       res.status(500).json({
@@ -660,15 +734,45 @@ class AdminController {
   // Get system health
   async getSystemHealth(req, res) {
     try {
+      const health = {
+        status: "healthy",
+        timestamp: new Date().toISOString(),
+        services: {
+          api: {
+            status: "up",
+            uptime: process.uptime(),
+            memory: process.memoryUsage(),
+            cpu: process.cpuUsage(),
+          },
+          database: {
+            status: "up",
+            connection: "established",
+          },
+          redis: {
+            status: "up",
+            memory: "64MB used",
+          },
+          monitoring: {
+            status: "up",
+            metricsCollected: Math.floor(Math.random() * 10000) + 5000,
+          },
+        },
+        metrics: {
+          requestsPerMinute: Math.floor(Math.random() * 100) + 50,
+          errorRate: (Math.random() * 2).toFixed(2),
+          responseTime: Math.floor(Math.random() * 100) + 50,
+          activeConnections: Math.floor(Math.random() * 500) + 200,
+        },
+        alerts: {
+          critical: Math.floor(Math.random() * 3),
+          warning: Math.floor(Math.random() * 5),
+          info: Math.floor(Math.random() * 10),
+        },
+      };
+
       res.json({
         success: true,
-        data: {
-          status: "healthy",
-          timestamp: new Date().toISOString(),
-          uptime: process.uptime(),
-          memory: process.memoryUsage(),
-          version: process.version,
-        },
+        data: health,
       });
     } catch (error) {
       logger.error("Get system health error:", error);
@@ -679,23 +783,50 @@ class AdminController {
     }
   }
 
-  // Get system stats
+  // Get system statistics
   async getSystemStats(req, res) {
     try {
+      const stats = {
+        general: {
+          uptime: process.uptime(),
+          version: "1.0.0",
+          nodeVersion: process.version,
+          platform: process.platform,
+        },
+        performance: {
+          cpuUsage: process.cpuUsage(),
+          memoryUsage: process.memoryUsage(),
+          heapTotal: process.memoryUsage().heapTotal,
+          heapUsed: process.memoryUsage().heapUsed,
+          rss: process.memoryUsage().rss,
+        },
+        requests: {
+          total: Math.floor(Math.random() * 1000000) + 500000,
+          today: Math.floor(Math.random() * 10000) + 5000,
+          active: Math.floor(Math.random() * 500) + 100,
+        },
+        security: {
+          threatsBlocked: Math.floor(Math.random() * 5000) + 1000,
+          anomaliesDetected: Math.floor(Math.random() * 1000) + 100,
+          activeThreats: Math.floor(Math.random() * 50) + 10,
+        },
+        storage: {
+          logsSize: (Math.random() * 1024).toFixed(2) + " MB",
+          dataSize: (Math.random() * 5120).toFixed(2) + " MB",
+          available: (Math.random() * 10240).toFixed(2) + " MB",
+        },
+        timestamp: new Date().toISOString(),
+      };
+
       res.json({
         success: true,
-        data: {
-          totalUsers: this.adminUsers.size,
-          totalAuditLogs: this.auditLogs.length,
-          systemConfig: this.systemConfig.general,
-          timestamp: new Date().toISOString(),
-        },
+        data: stats,
       });
     } catch (error) {
       logger.error("Get system stats error:", error);
       res.status(500).json({
         success: false,
-        error: "Failed to get system stats",
+        error: "Failed to get system statistics",
       });
     }
   }
@@ -703,27 +834,22 @@ class AdminController {
   // Get system logs
   async getSystemLogs(req, res) {
     try {
-      // Mock system logs
-      const systemLogs = [
-        {
-          id: uuidv4(),
-          timestamp: new Date(Date.now() - 1000 * 60 * 5),
-          level: "info",
-          message: "API Shield Backend started",
-          source: "api",
-        },
-        {
-          id: uuidv4(),
-          timestamp: new Date(Date.now() - 1000 * 60 * 10),
-          level: "warn",
-          message: "Rate limit exceeded for IP 192.168.1.100",
-          source: "security",
-        },
-      ];
+      const { level, limit = 100 } = req.query;
+      const logs = this.generateMockLogs(parseInt(limit));
+
+      if (level) {
+        const filteredLogs = logs.filter((log) => log.level === level);
+        return res.json({
+          success: true,
+          data: filteredLogs,
+          count: filteredLogs.length,
+        });
+      }
 
       res.json({
         success: true,
-        data: systemLogs,
+        data: logs,
+        count: logs.length,
       });
     } catch (error) {
       logger.error("Get system logs error:", error);
@@ -737,21 +863,28 @@ class AdminController {
   // Get system alerts
   async getSystemAlerts(req, res) {
     try {
-      // Mock alerts
-      const alerts = [
-        {
-          id: uuidv4(),
-          timestamp: new Date(Date.now() - 1000 * 60 * 30),
-          level: "high",
-          message: "Unusual traffic pattern detected",
-          source: "anomaly-detector",
-          resolved: false,
-        },
-      ];
+      const { severity, resolved } = req.query;
+      const alerts = this.generateMockAlerts();
+
+      let filteredAlerts = [...alerts];
+
+      if (severity) {
+        filteredAlerts = filteredAlerts.filter(
+          (alert) => alert.severity === severity
+        );
+      }
+
+      if (resolved !== undefined) {
+        const isResolved = resolved === "true";
+        filteredAlerts = filteredAlerts.filter(
+          (alert) => alert.resolved === isResolved
+        );
+      }
 
       res.json({
         success: true,
-        data: alerts,
+        data: filteredAlerts,
+        count: filteredAlerts.length,
       });
     } catch (error) {
       logger.error("Get system alerts error:", error);
@@ -765,27 +898,34 @@ class AdminController {
   // Create backup
   async createBackup(req, res) {
     try {
-      // Mock backup creation
       const backupId = uuidv4();
+      const timestamp = new Date();
+
+      const backup = {
+        id: backupId,
+        timestamp,
+        type: req.body.type || "full",
+        size: (Math.random() * 500 + 100).toFixed(2) + " MB",
+        status: "completed",
+        location: `/backups/${backupId}.tar.gz`,
+        includes: ["config", "logs", "audit", "threat_data"],
+      };
 
       // Log the backup
       this.addAuditLog({
         userId: req.user.email,
         action: "backup_create",
         resource: "/api/admin/backup",
-        details: `Backup ${backupId} created`,
+        details: `Created backup: ${backupId}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { backupId },
       });
 
       res.json({
         success: true,
-        data: {
-          id: backupId,
-          timestamp: new Date().toISOString(),
-          status: "completed",
-        },
+        data: backup,
         message: "Backup created successfully",
       });
     } catch (error) {
@@ -809,20 +949,37 @@ class AdminController {
         });
       }
 
-      // Mock restore
+      // Simulate restore
+      const restore = {
+        id: uuidv4(),
+        backupId,
+        timestamp: new Date(),
+        status: "in_progress",
+        estimatedCompletion: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes
+      };
+
+      // Log the restore
       this.addAuditLog({
         userId: req.user.email,
         action: "backup_restore",
         resource: "/api/admin/restore",
-        details: `Backup ${backupId} restored`,
+        details: `Started restore from backup: ${backupId}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { backupId },
       });
+
+      // Simulate async restore completion
+      setTimeout(() => {
+        restore.status = "completed";
+        restore.completedAt = new Date();
+      }, 5000);
 
       res.json({
         success: true,
-        message: "Backup restored successfully",
+        data: restore,
+        message: "Backup restoration started",
       });
     } catch (error) {
       logger.error("Restore backup error:", error);
@@ -836,19 +993,37 @@ class AdminController {
   // Get backups
   async getBackups(req, res) {
     try {
-      // Mock backups
       const backups = [
         {
-          id: uuidv4(),
-          timestamp: new Date(Date.now() - 1000 * 60 * 60 * 24),
-          size: "1.2GB",
+          id: "backup_001",
+          timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+          type: "full",
+          size: "245.6 MB",
           status: "completed",
+          location: "/backups/backup_001.tar.gz",
+        },
+        {
+          id: "backup_002",
+          timestamp: new Date(Date.now() - 48 * 60 * 60 * 1000),
+          type: "incremental",
+          size: "45.2 MB",
+          status: "completed",
+          location: "/backups/backup_002.tar.gz",
+        },
+        {
+          id: "backup_003",
+          timestamp: new Date(Date.now() - 72 * 60 * 60 * 1000),
+          type: "full",
+          size: "230.1 MB",
+          status: "completed",
+          location: "/backups/backup_003.tar.gz",
         },
       ];
 
       res.json({
         success: true,
         data: backups,
+        count: backups.length,
       });
     } catch (error) {
       logger.error("Get backups error:", error);
@@ -862,21 +1037,69 @@ class AdminController {
   // Get threat intelligence
   async getThreatIntelligence(req, res) {
     try {
-      // Mock threat intelligence
+      const { limit = 50, type, risk } = req.query;
+
       const threats = [
         {
-          id: uuidv4(),
-          ip: "192.168.1.100",
-          type: "malicious",
-          severity: "high",
-          source: "abuseipdb",
-          lastSeen: new Date(Date.now() - 1000 * 60 * 60 * 2),
+          id: "threat_001",
+          type: "ip",
+          value: "185.220.101.33",
+          risk: "high",
+          source: "TOR",
+          lastSeen: new Date(),
+        },
+        {
+          id: "threat_002",
+          type: "ip",
+          value: "45.155.205.233",
+          risk: "high",
+          source: "Botnet",
+          lastSeen: new Date(Date.now() - 3600000),
+        },
+        {
+          id: "threat_003",
+          type: "domain",
+          value: "malicious-site.com",
+          risk: "medium",
+          source: "Phishing",
+          lastSeen: new Date(Date.now() - 7200000),
+        },
+        {
+          id: "threat_004",
+          type: "ip_range",
+          value: "103.237.145.0/24",
+          risk: "medium",
+          source: "Scanner",
+          lastSeen: new Date(Date.now() - 10800000),
+        },
+        {
+          id: "threat_005",
+          type: "user_agent",
+          value: "BadBot/1.0",
+          risk: "low",
+          source: "Scraper",
+          lastSeen: new Date(Date.now() - 14400000),
         },
       ];
 
+      let filteredThreats = [...threats];
+
+      if (type) {
+        filteredThreats = filteredThreats.filter(
+          (threat) => threat.type === type
+        );
+      }
+
+      if (risk) {
+        filteredThreats = filteredThreats.filter(
+          (threat) => threat.risk === risk
+        );
+      }
+
       res.json({
         success: true,
-        data: threats,
+        data: filteredThreats.slice(0, limit),
+        count: filteredThreats.length,
       });
     } catch (error) {
       logger.error("Get threat intelligence error:", error);
@@ -890,24 +1113,25 @@ class AdminController {
   // Add threat intelligence
   async addThreatIntel(req, res) {
     try {
-      const { ip, type, severity, source } = req.body;
+      const { type, value, risk, source, description } = req.body;
 
-      if (!ip || !type || !severity) {
+      if (!type || !value || !risk) {
         return res.status(400).json({
           success: false,
-          error: "IP, type, and severity are required",
+          error: "Type, value, and risk are required",
         });
       }
 
-      // Mock adding threat intel
       const threat = {
         id: uuidv4(),
-        ip,
         type,
-        severity,
+        value,
+        risk,
         source: source || "manual",
+        description,
         addedBy: req.user.email,
-        timestamp: new Date(),
+        addedAt: new Date(),
+        lastSeen: new Date(),
       };
 
       // Log the addition
@@ -915,10 +1139,11 @@ class AdminController {
         userId: req.user.email,
         action: "threat_add",
         resource: "/api/admin/threat-intel",
-        details: `Threat intel added for IP ${ip}`,
+        details: `Added threat intelligence: ${value}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { threat },
       });
 
       res.status(201).json({
@@ -927,7 +1152,7 @@ class AdminController {
         message: "Threat intelligence added successfully",
       });
     } catch (error) {
-      logger.error("Add threat intel error:", error);
+      logger.error("Add threat intelligence error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to add threat intelligence",
@@ -938,17 +1163,18 @@ class AdminController {
   // Remove threat intelligence
   async removeThreatIntel(req, res) {
     try {
-      const { id } = req.params;
+      const threatId = req.params.id;
 
-      // Mock removal
+      // Log the removal
       this.addAuditLog({
         userId: req.user.email,
         action: "threat_remove",
-        resource: "/api/admin/threat-intel",
-        details: `Threat intel ${id} removed`,
+        resource: `/api/admin/threat-intel/${threatId}`,
+        details: `Removed threat intelligence: ${threatId}`,
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: { threatId },
       });
 
       res.json({
@@ -956,7 +1182,7 @@ class AdminController {
         message: "Threat intelligence removed successfully",
       });
     } catch (error) {
-      logger.error("Remove threat intel error:", error);
+      logger.error("Remove threat intelligence error:", error);
       res.status(500).json({
         success: false,
         error: "Failed to remove threat intelligence",
@@ -967,9 +1193,37 @@ class AdminController {
   // Get rate limits
   async getRateLimits(req, res) {
     try {
+      const rateLimits = {
+        api: {
+          windowMs: 15 * 60 * 1000,
+          max: 100,
+          message: "Too many requests from this IP",
+        },
+        auth: {
+          windowMs: 60 * 60 * 1000,
+          max: 10,
+          message: "Too many login attempts",
+        },
+        strict: {
+          windowMs: 60 * 60 * 1000,
+          max: 5,
+          message: "Rate limit exceeded",
+        },
+        dynamic: {
+          enabled: true,
+          baseMax: 100,
+          multipliers: {
+            low: 1,
+            medium: 0.5,
+            high: 0.1,
+          },
+        },
+      };
+
       res.json({
         success: true,
-        data: this.systemConfig.security.rateLimiting,
+        data: rateLimits,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Get rate limits error:", error);
@@ -985,23 +1239,23 @@ class AdminController {
     try {
       const updates = req.body;
 
-      Object.assign(this.systemConfig.security.rateLimiting, updates);
-
       // Log the update
       this.addAuditLog({
         userId: req.user.email,
-        action: "rate_limit_update",
+        action: "ratelimit_update",
         resource: "/api/admin/rate-limits",
-        details: "Rate limits updated",
+        details: "Updated rate limits configuration",
         ip: req.ip,
         userAgent: req.get("User-Agent"),
         status: "success",
+        changes: updates,
       });
 
       res.json({
         success: true,
-        data: this.systemConfig.security.rateLimiting,
         message: "Rate limits updated successfully",
+        data: updates,
+        timestamp: new Date().toISOString(),
       });
     } catch (error) {
       logger.error("Update rate limits error:", error);
@@ -1010,6 +1264,173 @@ class AdminController {
         error: "Failed to update rate limits",
       });
     }
+  }
+
+  // Helper: Add audit log
+  addAuditLog(logData) {
+    const auditLog = {
+      id: uuidv4(),
+      timestamp: new Date(),
+      ...logData,
+    };
+
+    this.auditLogs.unshift(auditLog);
+
+    // Keep only last 1000 logs
+    if (this.auditLogs.length > 1000) {
+      this.auditLogs = this.auditLogs.slice(0, 1000);
+    }
+
+    return auditLog;
+  }
+
+  // Helper: Deep merge objects
+  deepMerge(target, source) {
+    for (const key in source) {
+      if (
+        source[key] &&
+        typeof source[key] === "object" &&
+        !Array.isArray(source[key])
+      ) {
+        if (!target[key] || typeof target[key] !== "object") {
+          target[key] = {};
+        }
+        this.deepMerge(target[key], source[key]);
+      } else {
+        target[key] = source[key];
+      }
+    }
+    return target;
+  }
+
+  // Helper: Apply audit log filters
+  applyAuditLogFilters(filters) {
+    let filteredLogs = [...this.auditLogs];
+
+    if (filters.action) {
+      filteredLogs = filteredLogs.filter(
+        (log) => log.action === filters.action
+      );
+    }
+
+    if (filters.userId) {
+      filteredLogs = filteredLogs.filter(
+        (log) => log.userId === filters.userId
+      );
+    }
+
+    if (filters.status) {
+      filteredLogs = filteredLogs.filter(
+        (log) => log.status === filters.status
+      );
+    }
+
+    if (filters.startDate) {
+      const start = new Date(filters.startDate);
+      filteredLogs = filteredLogs.filter(
+        (log) => new Date(log.timestamp) >= start
+      );
+    }
+
+    if (filters.endDate) {
+      const end = new Date(filters.endDate);
+      filteredLogs = filteredLogs.filter(
+        (log) => new Date(log.timestamp) <= end
+      );
+    }
+
+    return filteredLogs;
+  }
+
+  // Helper: Generate mock logs
+  generateMockLogs(count) {
+    const levels = ["error", "warn", "info", "debug"];
+    const messages = [
+      "Request processed successfully",
+      "Authentication attempt failed",
+      "Rate limit exceeded for IP",
+      "Database connection established",
+      "Cache miss for endpoint",
+      "Security alert triggered",
+      "Backup completed successfully",
+      "System health check passed",
+      "Error processing webhook",
+      "User session expired",
+    ];
+
+    const logs = [];
+
+    for (let i = 0; i < count; i++) {
+      const hoursAgo = Math.random() * 24;
+      const timestamp = new Date(Date.now() - hoursAgo * 60 * 60 * 1000);
+
+      logs.push({
+        id: uuidv4(),
+        timestamp,
+        level: levels[Math.floor(Math.random() * levels.length)],
+        message: messages[Math.floor(Math.random() * messages.length)],
+        source: `service_${Math.floor(Math.random() * 5) + 1}`,
+        metadata: {
+          ip: `192.168.${Math.floor(Math.random() * 255)}.${Math.floor(
+            Math.random() * 255
+          )}`,
+          endpoint: `/api/v${Math.floor(Math.random() * 3) + 1}/${
+            ["users", "products", "orders"][Math.floor(Math.random() * 3)]
+          }`,
+          duration: Math.random() * 1000,
+        },
+      });
+    }
+
+    return logs.sort((a, b) => b.timestamp - a.timestamp);
+  }
+
+  // Helper: Generate mock alerts
+  generateMockAlerts() {
+    return [
+      {
+        id: "alert_001",
+        timestamp: new Date(Date.now() - 2 * 60 * 60 * 1000),
+        severity: "critical",
+        title: "DDoS Attack Detected",
+        description: "High volume of requests from multiple IPs",
+        source: "anomaly_detector",
+        resolved: false,
+        actions: ["rate_limit", "ip_block"],
+      },
+      {
+        id: "alert_002",
+        timestamp: new Date(Date.now() - 5 * 60 * 60 * 1000),
+        severity: "high",
+        title: "Credential Stuffing Attempt",
+        description: "Multiple failed login attempts from single IP",
+        source: "threat_intel",
+        resolved: true,
+        resolvedAt: new Date(Date.now() - 4 * 60 * 60 * 1000),
+        actions: ["ip_block"],
+      },
+      {
+        id: "alert_003",
+        timestamp: new Date(Date.now() - 12 * 60 * 60 * 1000),
+        severity: "medium",
+        title: "Unusual Traffic Pattern",
+        description: "Statistical anomaly detected in request patterns",
+        source: "analytics",
+        resolved: false,
+        actions: ["monitor", "analyze"],
+      },
+      {
+        id: "alert_004",
+        timestamp: new Date(Date.now() - 24 * 60 * 60 * 1000),
+        severity: "low",
+        title: "High Error Rate",
+        description: "Increased error rate on payment endpoint",
+        source: "monitoring",
+        resolved: true,
+        resolvedAt: new Date(Date.now() - 20 * 60 * 60 * 1000),
+        actions: ["investigate"],
+      },
+    ];
   }
 }
 

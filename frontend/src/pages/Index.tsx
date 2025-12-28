@@ -1,86 +1,91 @@
 import { useState, useEffect } from 'react';
 import { Header } from '@/components/dashboard/Header';
 import { MetricCard } from '@/components/dashboard/MetricCard';
-import { TrafficChart } from '@/components/dashboard/TrafficChart';
 import { ThreatActorsList } from '@/components/dashboard/ThreatActorsList';
 import { EndpointsList } from '@/components/dashboard/EndpointsList';
 import { AnomalyTimeline } from '@/components/dashboard/AnomalyTimeline';
 import { ActionRecommendations } from '@/components/dashboard/ActionRecommendations';
-import { 
-  mockThreatActors, 
-  mockEndpoints, 
-  mockAnomalies, 
-  mockRecommendations,
-  mockMetrics,
-  generateTimeSeriesData 
-} from '@/data/mockData';
-import { ThreatActor, ActionRecommendation } from '@/types/security';
-import { useToast } from '@/hooks/use-toast';
-import { 
-  Activity, 
-  ShieldAlert, 
-  Ban, 
-  Clock, 
-  Users, 
+import { ThreatActor, ActionRecommendation, TimeSeriesData, AnomalyEvent, Endpoint } from '@/types/security';
+import { securityApi } from '@/services/api';
+import {
+  Activity,
+  ShieldAlert,
+  Ban,
+  Clock,
+  Users,
   Zap,
   AlertTriangle
 } from 'lucide-react';
 
 const Index = () => {
-  const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [timeSeriesData, setTimeSeriesData] = useState(generateTimeSeriesData());
-  const [metrics, setMetrics] = useState(mockMetrics);
+  const [timeSeriesData, setTimeSeriesData] = useState<TimeSeriesData[]>([]);
+  const [threatActors, setThreatActors] = useState<ThreatActor[]>([]);
+  const [anomalies, setAnomalies] = useState<AnomalyEvent[]>([]);
+  const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [recommendations, setRecommendations] = useState<ActionRecommendation[]>([]);
 
-  const criticalAlerts = mockAnomalies.filter(
+  const criticalAlerts = anomalies.filter(
     (a) => a.severity === 'critical' || a.severity === 'high'
   ).length;
 
   useEffect(() => {
-    // Simulate real-time updates
-    const interval = setInterval(() => {
-      setMetrics((prev) => ({
-        ...prev,
-        totalRequests: prev.totalRequests + Math.floor(Math.random() * 100),
-        blockedRequests: prev.blockedRequests + Math.floor(Math.random() * 10),
-        requestsPerSecond: 800 + Math.floor(Math.random() * 100),
-      }));
-    }, 2000);
+    const fetchData = async () => {
+      try {
+        const [trafficData, anomaliesData, actorsData, endpointsData, recommendationsData] = await Promise.all([
+          securityApi.getTrafficData(24),
+          securityApi.getAnomalies(50),
+          securityApi.getThreatActors(20),
+          securityApi.getEndpoints(20),
+          securityApi.getActionRecommendations(10)
+        ]);
 
-    return () => clearInterval(interval);
+        setTimeSeriesData(trafficData);
+        setAnomalies(anomaliesData);
+        setThreatActors(actorsData);
+        setEndpoints(endpointsData);
+        setRecommendations(recommendationsData);
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
+        // Keep empty arrays for now
+      }
+    };
+
+    fetchData();
   }, []);
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    setTimeSeriesData(generateTimeSeriesData());
+    try {
+      const [trafficData, anomaliesData, actorsData, endpointsData, recommendationsData] = await Promise.all([
+        securityApi.getTrafficData(24),
+        securityApi.getAnomalies(50),
+        securityApi.getThreatActors(20),
+        securityApi.getEndpoints(20),
+        securityApi.getActionRecommendations(10)
+      ]);
+
+      setTimeSeriesData(trafficData);
+      setAnomalies(anomaliesData);
+      setThreatActors(actorsData);
+      setEndpoints(endpointsData);
+      setRecommendations(recommendationsData);
+    } catch (error) {
+      console.error('Failed to refresh data:', error);
+    }
     setIsRefreshing(false);
-    toast({
-      title: 'Dashboard refreshed',
-      description: 'All data has been updated.',
-    });
   };
 
   const handleBlockActor = (actor: ThreatActor) => {
-    toast({
-      title: 'IP Blocked',
-      description: `${actor.ip} has been added to the blocklist.`,
-      variant: 'destructive',
-    });
+    console.log('Block actor:', actor);
   };
 
   const handleMonitorActor = (actor: ThreatActor) => {
-    toast({
-      title: 'Monitoring enabled',
-      description: `${actor.ip} is now being monitored.`,
-    });
+    console.log('Monitor actor:', actor);
   };
 
   const handleApplyAction = (recommendation: ActionRecommendation) => {
-    toast({
-      title: `Action applied: ${recommendation.action}`,
-      description: `${recommendation.action} has been applied to ${recommendation.target}`,
-    });
+    console.log('Apply action:', recommendation);
   };
 
   return (
@@ -94,15 +99,15 @@ const Index = () => {
       <main className="container mx-auto px-4 py-6">
         {/* Critical Alert Banner */}
         {criticalAlerts > 0 && (
-          <div className="mb-6 rounded-lg border border-threat/30 bg-threat/10 p-4 animate-fade-in">
+          <div className="mb-6 rounded-lg border border-red-300 bg-red-50 p-4">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-threat animate-pulse" />
+              <AlertTriangle className="h-5 w-5 text-red-500" />
               <div>
-                <p className="font-semibold text-threat">
+                <p className="font-semibold text-red-700">
                   {criticalAlerts} Critical Alert{criticalAlerts > 1 ? 's' : ''} Detected
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Immediate attention required. Active credential stuffing attack in progress.
+                <p className="text-sm text-red-600">
+                  Immediate attention required.
                 </p>
               </div>
             </div>
@@ -110,91 +115,71 @@ const Index = () => {
         )}
 
         {/* Metrics Grid */}
-        <div className="data-grid mb-6">
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
           <MetricCard
             title="Total Requests"
-            value={metrics.totalRequests}
+            value={timeSeriesData.reduce((sum, d) => sum + d.requests, 0) || 0}
             subtitle="Last 24 hours"
             icon={<Activity className="h-5 w-5" />}
-            trend={{ value: 12.5, direction: 'up', isGood: true }}
           />
           <MetricCard
             title="Blocked Requests"
-            value={metrics.blockedRequests}
-            subtitle="3.1% of total"
+            value={timeSeriesData.reduce((sum, d) => sum + d.blocked, 0) || 0}
+            subtitle="Protected"
             icon={<Ban className="h-5 w-5" />}
-            trend={{ value: 45.2, direction: 'up', isGood: false }}
             variant="threat"
           />
           <MetricCard
             title="Anomalies Detected"
-            value={metrics.anomalousRequests}
-            subtitle="0.4% of total"
+            value={anomalies.length}
+            subtitle="Active threats"
             icon={<ShieldAlert className="h-5 w-5" />}
-            trend={{ value: 23.1, direction: 'up', isGood: false }}
             variant="warning"
           />
           <MetricCard
-            title="Avg Response Time"
-            value={`${metrics.avgResponseTime}ms`}
-            subtitle="P95: 342ms"
-            icon={<Clock className="h-5 w-5" />}
-            trend={{ value: 8.3, direction: 'down', isGood: true }}
-          />
-          <MetricCard
             title="Unique IPs"
-            value={metrics.uniqueIps}
-            subtitle="Active in last hour"
+            value={threatActors.length}
+            subtitle="Monitored"
             icon={<Users className="h-5 w-5" />}
-            trend={{ value: 5.7, direction: 'up', isGood: true }}
           />
           <MetricCard
-            title="Requests/Second"
-            value={metrics.requestsPerSecond}
-            subtitle="Current rate"
+            title="Endpoints"
+            value={endpoints.length}
+            subtitle="Protected"
             icon={<Zap className="h-5 w-5" />}
-            trend={{ value: 2.1, direction: 'neutral' }}
             variant="success"
           />
-        </div>
-
-        {/* Traffic Chart */}
-        <div className="mb-6">
-          <TrafficChart data={timeSeriesData} />
+          <MetricCard
+            title="Recommendations"
+            value={recommendations.length}
+            subtitle="Available"
+            icon={<Clock className="h-5 w-5" />}
+          />
         </div>
 
         {/* Main Content Grid */}
         <div className="grid gap-6 lg:grid-cols-2">
           <ThreatActorsList
-            actors={mockThreatActors}
+            actors={threatActors}
             onBlock={handleBlockActor}
             onMonitor={handleMonitorActor}
           />
-          <AnomalyTimeline events={mockAnomalies} />
+          <AnomalyTimeline events={anomalies} />
         </div>
 
         {/* Endpoints Section */}
         <div className="mt-6">
-          <EndpointsList endpoints={mockEndpoints} />
+          <EndpointsList endpoints={endpoints} />
         </div>
 
         {/* Action Recommendations */}
         <div className="mt-6">
           <ActionRecommendations
-            recommendations={mockRecommendations}
+            recommendations={recommendations}
             onApply={handleApplyAction}
           />
         </div>
       </main>
-
-      {/* Footer */}
-      <footer className="border-t border-border py-4 mt-8">
-        <div className="container mx-auto px-4 text-center text-sm text-muted-foreground">
-          <p>
-            APIShield v1.0.0 • Powered by NGINX • MongoDB • Node.js • Docker
-          </p>
-        </div>
-      </footer>
     </div>
   );
 };

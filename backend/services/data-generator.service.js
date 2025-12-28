@@ -149,8 +149,8 @@ class DataGeneratorService {
 
       actors.push({
         id: uuidv4(),
-        ip: faker.internet.ip(),
-        country:
+        ipAddress: faker.internet.ip(),
+        countryCode:
           this.countries[Math.floor(Math.random() * this.countries.length)],
         status,
         threatScore,
@@ -181,7 +181,7 @@ class DataGeneratorService {
         method: methods[Math.floor(Math.random() * methods.length)],
         requestsPerMinute: Math.floor(Math.random() * 5000) + 100,
         avgResponseTime: Math.floor(Math.random() * 200) + 50,
-        errorRate: (Math.random() * 5).toFixed(1),
+        errorRate: Math.random() * 5,
         anomalyScore: Math.floor(anomalyScore),
         isUnderAttack: index < 2,
         topAbusers: Array.from({ length: 3 }, () => faker.internet.ip()),
@@ -204,6 +204,77 @@ class DataGeneratorService {
       errorRate: (Math.random() * 3).toFixed(2),
       dataProcessedGB: (Math.random() * 500 + 100).toFixed(1),
     };
+  }
+
+  generateActionRecommendations(limit = 5) {
+    const actions = ["block", "throttle", "challenge", "monitor", "whitelist"];
+    const targetTypes = ["ip", "endpoint", "user", "country"];
+    const priorities = ["low", "medium", "high", "critical"];
+    const reasons = [
+      "High anomaly score detected",
+      "Suspicious traffic pattern",
+      "Credential stuffing attempt",
+      "Rate limit exceeded",
+      "Geographic anomaly",
+      "Known malicious IP",
+      "API abuse detected",
+    ];
+    const impacts = [
+      "Minimal impact on legitimate traffic",
+      "May affect some users",
+      "Potential business disruption",
+      "High risk of collateral damage",
+    ];
+
+    const recommendations = [];
+
+    for (let i = 0; i < limit; i++) {
+      const action = actions[Math.floor(Math.random() * actions.length)];
+      const targetType = targetTypes[Math.floor(Math.random() * targetTypes.length)];
+      const confidence = Math.floor(Math.random() * 40) + 60; // 60-100%
+      const affectedUsers = Math.floor(Math.random() * 1000) + 10;
+      const affectedRequests = Math.floor(Math.random() * 10000) + 100;
+      const legitimateTrafficPercent = Math.random() * 15; // 0-15%
+
+      let target;
+      switch (targetType) {
+        case "ip":
+          target = faker.internet.ip();
+          break;
+        case "endpoint":
+          target = this.endpoints[Math.floor(Math.random() * this.endpoints.length)];
+          break;
+        case "user":
+          target = faker.internet.userName();
+          break;
+        case "country":
+          target = this.countries[Math.floor(Math.random() * this.countries.length)];
+          break;
+        default:
+          target = faker.internet.ip();
+      }
+
+      recommendations.push({
+        id: uuidv4(),
+        action,
+        targetType,
+        target,
+        reason: reasons[Math.floor(Math.random() * reasons.length)],
+        confidence,
+        priority: priorities[Math.floor(Math.random() * priorities.length)],
+        estimatedImpact: impacts[Math.floor(Math.random() * impacts.length)],
+        collateralDamage: {
+          affectedUsers,
+          affectedRequests,
+          legitimateTrafficPercent: Math.round(legitimateTrafficPercent * 100) / 100,
+          businessImpact: legitimateTrafficPercent > 10 ? "high" : legitimateTrafficPercent > 5 ? "medium" : "low",
+        },
+        source: "ai",
+        status: "pending",
+      });
+    }
+
+    return recommendations;
   }
 }
 

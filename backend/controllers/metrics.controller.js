@@ -1,43 +1,114 @@
+//backend/controllers/metrics.controller.js
+
 const DataGeneratorService = require("../services/data-generator.service");
+const { getRequestMetrics } = require("../middleware/request-tracker");
 const logger = require("../utils/logger");
 
 class MetricsController {
   constructor() {
     this.dataGenerator = new DataGeneratorService();
+
+    this.getDashboardMetrics = this.getDashboardMetrics.bind(this);
+    this.getOverviewMetrics = this.getOverviewMetrics.bind(this);
+    this.getMetricsSummary = this.getMetricsSummary.bind(this);
+    this.getTimeSeriesData = this.getTimeSeriesData.bind(this);
+    this.getRealTimeMetrics = this.getRealTimeMetrics.bind(this);
+    this.getHistoricalData = this.getHistoricalData.bind(this);
+    this.getPerformanceMetrics = this.getPerformanceMetrics.bind(this);
+    this.getEndpointPerformance = this.getEndpointPerformance.bind(this);
+    this.getLatencyMetrics = this.getLatencyMetrics.bind(this);
+    this.getErrorMetrics = this.getErrorMetrics.bind(this);
+    this.getErrorRate = this.getErrorRate.bind(this);
+    this.getErrorTypes = this.getErrorTypes.bind(this);
+    this.getSecurityMetrics = this.getSecurityMetrics.bind(this);
+    this.getBlockedRequests = this.getBlockedRequests.bind(this);
+    this.getThreatMetrics = this.getThreatMetrics.bind(this);
+    this.exportMetricsData = this.exportMetricsData.bind(this);
+    this.exportMetricsCSV = this.exportMetricsCSV.bind(this);
   }
+
 
   // Get dashboard metrics
   async getDashboardMetrics(req, res) {
     try {
-      const metrics = {
-        traffic: this.dataGenerator.generateTimeSeriesData(24),
-        anomalies: this.dataGenerator.generateAnomalyEvents(10),
-        threatActors: this.dataGenerator.generateThreatActors(8),
-        recommendations: this.dataGenerator.generateActionRecommendations(5),
-        summary: {
-          totalRequests: 1254308,
-          blockedRequests: 45231,
-          anomalyCount: 342,
-          threatActorsDetected: 28,
-          avgResponseTime: 87,
-          errorRate: 1.2,
-          uptime: 99.95,
-          dataProcessedGB: 245.6,
-        },
-        timestamp: new Date().toISOString(),
+      const realMetrics = getRequestMetrics();
+
+      const uniqueIps = Object.keys(realMetrics.requestsByIP || {}).length;
+
+      const summary = {
+        totalRequests: realMetrics.totalRequests,
+        blockedRequests: realMetrics.blockedRequests,
+        anomalyCount: 0, // derived elsewhere
+        threatActorsDetected: 0, // derived elsewhere
+        avgResponseTime: realMetrics.avgResponseTime,
+        uniqueIps,
+        requestsPerSecond: Math.round(realMetrics.totalRequests / Math.max((Date.now() - realMetrics.lastReset) / 1000, 1)),
+        errorRate: realMetrics.totalRequests > 0
+          ? ((realMetrics.blockedRequests / realMetrics.totalRequests) * 100).toFixed(2)
+          : 0,
+        blockRate: realMetrics.totalRequests > 0
+          ? ((realMetrics.blockedRequests / realMetrics.totalRequests) * 100).toFixed(2)
+          : 0,
+        uptime: process.uptime().toFixed(0),
+        dataProcessedGB: ((realMetrics.totalRequests * 2) / 1024).toFixed(2),
       };
 
       res.json({
         success: true,
-        data: metrics,
+        data: {
+          summary,
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
       logger.error("Error getting dashboard metrics:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch dashboard metrics",
+      res.status(500).json({ success: false, error: "Failed to fetch metrics" });
+    }
+  }
+
+
+  // Generate time series data based on real request metrics
+  generateRealTimeSeriesData(realMetrics) {
+    const data = [];
+    const now = new Date();
+
+    for (let i = 23; i >= 0; i--) {
+      const timestamp = new Date(now.getTime() - i * 60 * 60 * 1000);
+      const hour = timestamp.getHours();
+
+      // Use real request count for this hour, fallback to mock
+      const realRequests = realMetrics.requestsByHour[hour] || 0;
+      const baseRequests = realRequests;
+
+
+      const blocked = Math.floor(Math.random() * baseRequests * 0.1);
+      const anomalies = Math.floor(Math.random() * baseRequests * 0.05);
+
+      data.push({
+        timestamp,
+        requests: baseRequests,
+        blocked,
+        anomalies,
+        responseTime: realMetrics.avgResponseTime || Math.random() * 200 + 50,
       });
     }
+
+    // Add some spikes for demo purposes
+    this.addAnomalies(data);
+
+    return data;
+  }
+
+  addAnomalies(data) {
+    // Add DDoS spike
+    const ddosIndex = Math.floor(Math.random() * data.length);
+    data[ddosIndex].requests *= 3;
+    data[ddosIndex].blocked *= 2;
+    data[ddosIndex].anomalies *= 4;
+
+    // Add anomaly spike
+    const anomalyIndex = Math.floor(Math.random() * data.length);
+    data[anomalyIndex].anomalies *= 5;
   }
 
   // Get overview metrics
@@ -191,26 +262,21 @@ class MetricsController {
   // Get real-time metrics
   async getRealTimeMetrics(req, res) {
     try {
-      const metrics = {
-        currentRequestsPerSecond: Math.floor(Math.random() * 100) + 50,
-        activeConnections: Math.floor(Math.random() * 500) + 200,
-        errorRate: (Math.random() * 2).toFixed(2),
-        responseTime: Math.floor(Math.random() * 100) + 50,
-        blockedRequests: Math.floor(Math.random() * 100) + 10,
-        timestamp: new Date().toISOString(),
-        lastUpdated: new Date().toISOString(),
-      };
-
+      const real = getRequestMetrics();
       res.json({
         success: true,
-        data: metrics,
+        data: {
+          totalRequests: real.totalRequests,
+          blockedRequests: real.blockedRequests,
+          avgResponseTime: real.avgResponseTime,
+          requestsByEndpoint: real.requestsByEndpoint,
+          requestsByHour: real.requestsByHour,
+          timestamp: new Date().toISOString(),
+        },
       });
     } catch (error) {
       logger.error("Error getting real-time metrics:", error);
-      res.status(500).json({
-        success: false,
-        error: "Failed to fetch real-time metrics",
-      });
+      res.status(500).json({ success: false, error: "Failed to fetch real-time metrics" });
     }
   }
 
@@ -607,8 +673,7 @@ class MetricsController {
           data = this.dataGenerator.generateThreatActors(50);
           break;
         default:
-          data = await this.getOverviewMetrics(req, res);
-          data = data.data;
+          data = { message: "Use /overview endpoint for this data" };
       }
 
       if (format === "csv") {

@@ -18,8 +18,10 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => logger.info(`Socket disconnected: ${socket.id}`));
 });
 
+const PORT = process.env.PORT || 4000;
+
 console.log("About to start server...");
 
-server.listen(4000, () => {
-  logger.info("Backend running on port 4000");
+server.listen(PORT, () => {
+  logger.info(`Backend running on port ${PORT}`);
 });

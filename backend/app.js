@@ -1,3 +1,5 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
@@ -23,7 +25,7 @@ app.use(morgan("dev"));
 
 app.use(
   "/api",
-  rateLimit({ windowMs: 15 * 60 * 1000, max: 100, standardHeaders: true })
+  rateLimit({ windowMs: 60 * 1000, max: 100, standardHeaders: true })
 );
 
 app.use("/api/security", securityRoutes);

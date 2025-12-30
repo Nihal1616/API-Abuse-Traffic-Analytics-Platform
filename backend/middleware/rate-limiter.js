@@ -13,7 +13,7 @@ if (process.env.REDIS_URL) {
 
 // Different rate limiters for different endpoints
 const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
+  windowMs: 60 * 1000, // 1 minute
   max: 100, // Limit each IP to 100 requests per windowMs
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true,

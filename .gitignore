@@ -91,3 +91,8 @@ temp/
 
 # OS generated files
 Thumbs.db
+
+backend/ngrok.exe
+ngrok.exe
+*.exe
+*.zip

@@ -14,6 +14,8 @@ const metricsRoutes = require("./routes/metrics");
 const adminRoutes = require("./routes/admin");
 
 const app = express();
+app.set("trust proxy", 1);
+
 
 app.use(requestTracker);
 
@@ -23,10 +25,21 @@ app.use(express.json());
 app.use(compression());
 app.use(morgan("dev"));
 
-app.use(
-  "/api",
-  rateLimit({ windowMs: 60 * 1000, max: 100, standardHeaders: true })
-);
+const apiLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({
+      success: false,
+      message: "Too many requests — please slow down."
+    });
+  }
+});
+
+app.use("/api", apiLimiter);
+
 
 app.use("/api/security", securityRoutes);
 app.use("/api/metrics", metricsRoutes);

@@ -18,7 +18,7 @@ const app = express();
 app.use(requestTracker);
 
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
-app.use(cors({ origin: ["http://localhost:5173"], credentials: true }));
+app.use(cors({ origin: ["http://localhost:5173", "https://api-abuse-traffic-analytics-platform.onrender.com", "https://api-abuse-traffic-platform.web.app"], credentials: true }));
 app.use(express.json());
 app.use(compression());
 app.use(morgan("dev"));

@@ -43,6 +43,7 @@ cd API-Abuse-Traffic-Analytics-Platform
 ```
 
 ### 2. Backend Setup
+If running locally:
 ```bash
 cd backend
 cp .env.example .env
@@ -52,30 +53,35 @@ npm run seed  # Optional: seed with sample data
 npm start
 ```
 
+For deployment on Render:
+- Connect your GitHub repo to Render
+- Set environment variables in Render dashboard
+- Deploy the backend service
+
 ### 3. Frontend Setup
 ```bash
 cd ../frontend
 cp .env.example .env
-# Edit .env with your API URLs
+# Edit .env with your API URLs (use Render URL if backend is deployed)
 npm install
 npm run dev
 ```
 
 ### 4. Access the Application
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:4000
+- Frontend: http://localhost:5173 (local) or your deployed frontend URL
+- Backend API: http://localhost:4000 (local) or your Render backend URL
 
 ## ⚙️ Environment Variables
 
 ### Backend (.env)
 ```env
 # Required
-MONGODB_URI=mongodb://localhost:27017/api-shield
+MONGODB_URI=mongodb://localhost:27017/api-shield  # Use MongoDB Atlas for production
 JWT_SECRET=your-super-secret-jwt-key
 API_KEY=your-api-key
 
 # Optional
-REDIS_URL=redis://localhost:6379
+REDIS_URL=redis://localhost:6379  # Use Redis Cloud or similar for production
 PORT=4000
 NODE_ENV=development
 LOG_LEVEL=info
@@ -83,9 +89,16 @@ LOG_LEVEL=info
 
 ### Frontend (.env)
 ```env
-VITE_API_URL=http://localhost:4000/api
-VITE_SOCKET_URL=http://localhost:4000
+VITE_API_URL=http://localhost:4000/api  # Use your Render backend URL for production
+VITE_SOCKET_URL=http://localhost:4000   # Use your Render backend URL for production
 ```
+
+### Production Deployment Notes
+- For Render deployment, set environment variables in the Render dashboard
+- Use MongoDB Atlas for database in production
+- Update CORS origins in `backend/app.js` to allow your frontend domain (e.g., your Render frontend URL)
+- Ensure JWT_SECRET and API_KEY are secure random strings
+- If deploying frontend on Render, update VITE_API_URL and VITE_SOCKET_URL accordingly
 
 ## 🐳 Docker Deployment
 

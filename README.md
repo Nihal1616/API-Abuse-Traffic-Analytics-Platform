@@ -96,6 +96,9 @@ VITE_SOCKET_URL=http://localhost:4000   # Use your Render backend URL for produc
 ### Production Deployment Notes
 - For Render deployment, set environment variables in the Render dashboard
 - Use MongoDB Atlas for database in production
+- **Whitelist Render outbound IPs in MongoDB Atlas**: Add these IP ranges to your MongoDB Atlas network access:
+  - 74.220.48.0/24
+  - 74.220.56.0/24
 - Update CORS origins in `backend/app.js` to allow your frontend domain (e.g., your Render frontend URL)
 - Ensure JWT_SECRET and API_KEY are secure random strings
 - If deploying frontend on Render, update VITE_API_URL and VITE_SOCKET_URL accordingly

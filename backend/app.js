@@ -16,47 +16,51 @@ const adminRoutes = require("./routes/admin");
 const app = express();
 app.set("trust proxy", 1);
 
-app.use((req, res, next) => {
-  console.log("IP:", req.ip, "Forwarded:", req.headers["x-forwarded-for"]);
-  next();
-});
-
+// Middlewares
 app.use(requestTracker);
-
 app.use(helmet({ crossOriginEmbedderPolicy: false }));
-app.use(cors({ origin: ["http://localhost:5173", "https://api-abuse-traffic-analytics-platform.onrender.com", "https://api-abuse-traffic-platform.web.app"], credentials: true }));
+app.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "https://api-abuse-traffic-analytics-platform.onrender.com",
+      "https://api-abuse-traffic-platform.web.app",
+    ],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(compression());
 app.use(morgan("dev"));
 
-const apiLimiter = rateLimit({
+// Rate limiters
+const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 50,
+  max: 500,
   standardHeaders: true,
   legacyHeaders: false,
-  keyGenerator: (req) => {
-    return (
-      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
-      req.socket.remoteAddress ||
-      "unknown"
-    );
-  },
+});
+
+const strictLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
   handler: (req, res) => {
     res.status(429).json({
       success: false,
-      message: "Too many requests — please slow down."
+      message: "Too many sensitive actions. Please slow down.",
     });
-  }
-});
-app.use("/api", (req, res, next) => {
-  console.log("Limiter reached for:", req.path);
-  next();
+  },
 });
 
+// Apply rate limiting
+app.use("/api/metrics", readLimiter);
+app.use("/api/security", readLimiter);
+app.use("/api/security/actions", strictLimiter);
+app.use("/api/admin", strictLimiter);
 
-app.use("/api", apiLimiter);;
-
-
+// Routes
 app.use("/api/security", securityRoutes);
 app.use("/api/metrics", metricsRoutes);
 app.use("/api/admin", adminRoutes);

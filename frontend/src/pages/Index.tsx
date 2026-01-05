@@ -27,6 +27,26 @@ import {
   AlertTriangle,
 } from "lucide-react";
 
+async function fetchWithRetry<T>(
+  fn: () => Promise<T>,
+  retries = 5,
+  delay = 5000
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (err: any) {
+    if (retries <= 0) throw err;
+
+    if (err?.response?.status === 429) {
+      await new Promise((r) => setTimeout(r, 10000));
+    } else {
+      await new Promise((r) => setTimeout(r, delay));
+    }
+
+    return fetchWithRetry(fn, retries - 1, delay);
+  }
+}
+
 const Index = () => {
   const { toast } = useToast();
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -62,10 +82,10 @@ const Index = () => {
       try {
         const [trafficData, threatData, anomalyData, dashboardMetrics] =
           await Promise.all([
-            securityApi.getTrafficData(24),
-            securityApi.getThreatActors(10),
-            securityApi.getLatestAnomalies(20),
-            metricsApi.getDashboardMetrics(),
+            fetchWithRetry(() => securityApi.getTrafficData(24)),
+            fetchWithRetry(() => securityApi.getThreatActors(10)),
+            fetchWithRetry(() => securityApi.getLatestAnomalies(20)),
+            fetchWithRetry(() => metricsApi.getDashboardMetrics()),
           ]);
 
         setTimeSeriesData(trafficData);
@@ -89,9 +109,8 @@ const Index = () => {
       } catch (error) {
         console.error("Failed to fetch data:", error);
         toast({
-          title: "Error",
-          description: "Failed to load dashboard data.",
-          variant: "destructive",
+          title: "Starting backend...",
+          description: "This may take up to 1 minute on first load.",
         });
       }
     };
@@ -136,10 +155,10 @@ const Index = () => {
     try {
       const [trafficData, threatData, anomalyData, dashboardMetrics] =
         await Promise.all([
-          securityApi.getTrafficData(24),
-          securityApi.getThreatActors(10),
-          securityApi.getLatestAnomalies(20),
-          metricsApi.getDashboardMetrics(),
+          fetchWithRetry(() => securityApi.getTrafficData(24), 3, 3000),
+          fetchWithRetry(() => securityApi.getThreatActors(10), 3, 3000),
+          fetchWithRetry(() => securityApi.getLatestAnomalies(20), 3, 3000),
+          fetchWithRetry(() => metricsApi.getDashboardMetrics(), 3, 3000),
         ]);
 
       setTimeSeriesData(trafficData);

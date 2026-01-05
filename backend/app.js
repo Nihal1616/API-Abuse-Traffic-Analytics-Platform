@@ -16,6 +16,10 @@ const adminRoutes = require("./routes/admin");
 const app = express();
 app.set("trust proxy", 1);
 
+app.use((req, res, next) => {
+  console.log("IP:", req.ip, "Forwarded:", req.headers["x-forwarded-for"]);
+  next();
+});
 
 app.use(requestTracker);
 
@@ -30,6 +34,13 @@ const apiLimiter = rateLimit({
   max: 100,
   standardHeaders: true,
   legacyHeaders: false,
+  keyGenerator: (req) => {
+    return (
+      req.headers["x-forwarded-for"]?.split(",")[0]?.trim() ||
+      req.socket.remoteAddress ||
+      "unknown"
+    );
+  },
   handler: (req, res) => {
     res.status(429).json({
       success: false,
@@ -38,7 +49,7 @@ const apiLimiter = rateLimit({
   }
 });
 
-app.use("/api", apiLimiter);
+app.use("/api", apiLimiter);;
 
 
 app.use("/api/security", securityRoutes);

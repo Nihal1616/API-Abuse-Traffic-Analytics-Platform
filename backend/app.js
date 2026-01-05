@@ -31,7 +31,7 @@ app.use(morgan("dev"));
 
 const apiLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 100,
+  max: 3,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: (req) => {
@@ -48,6 +48,11 @@ const apiLimiter = rateLimit({
     });
   }
 });
+app.use("/api", (req, res, next) => {
+  console.log("Limiter reached for:", req.path);
+  next();
+});
+
 
 app.use("/api", apiLimiter);;
 

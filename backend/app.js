@@ -8,6 +8,7 @@ const morgan = require("morgan");
 const rateLimit = require("express-rate-limit");
 const logger = require("./utils/logger");
 const { requestTracker } = require("./middleware/request-tracker");
+const recaptcha = require("./middleware/recaptcha");
 
 const securityRoutes = require("./routes/security");
 const metricsRoutes = require("./routes/metrics");
@@ -21,9 +22,7 @@ app.set("trust proxy", true);
 // Debug incoming IP
 app.use((req, res, next) => {
   const ip =
-    req.headers["cf-connecting-ip"] ||
-    req.headers["x-forwarded-for"] ||
-    req.ip;
+    req.headers["cf-connecting-ip"] || req.headers["x-forwarded-for"] || req.ip;
   console.log("Incoming IP:", ip);
   next();
 });
@@ -45,6 +44,14 @@ app.use(
 app.use(express.json());
 app.use(compression());
 app.use(morgan("dev"));
+
+// Global reCAPTCHA enforcement: require a valid token for all POST requests to /api
+app.use("/api", (req, res, next) => {
+  if (req.method && req.method.toUpperCase() === "POST") {
+    return recaptcha(req, res, next);
+  }
+  return next();
+});
 
 /** Key generator */
 const getClientIp = (req) =>

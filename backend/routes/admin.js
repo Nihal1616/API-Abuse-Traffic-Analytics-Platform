@@ -5,9 +5,11 @@ const {
   authenticateAdmin,
   validateAdminRequest,
 } = require("../middleware/auth");
+const recaptcha = require("../middleware/recaptcha");
 
 // Admin authentication
-router.post("/login", adminController.login);
+// Protect login with reCAPTCHA to prevent automated brute-force
+router.post("/login", recaptcha, adminController.login);
 router.post("/logout", authenticateAdmin, adminController.logout);
 router.get("/session", authenticateAdmin, adminController.getSession);
 

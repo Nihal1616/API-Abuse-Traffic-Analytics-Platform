@@ -4,6 +4,7 @@ const express = require("express");
 const router = express.Router();
 const securityController = require("../controllers/security.controller");
 const { validateApiRequest } = require("../middleware/validation");
+const recaptcha = require("../middleware/recaptcha");
 
 // Real-time data endpoints
 router.get("/traffic", securityController.getTrafficData);
@@ -19,21 +20,25 @@ router.get("/recommendations", securityController.getActionRecommendations);
 router.post(
   "/actions/block",
   validateApiRequest,
+  recaptcha,
   securityController.blockThreatActor
 );
 router.post(
   "/actions/throttle",
   validateApiRequest,
+  recaptcha,
   securityController.throttleTraffic
 );
 router.post(
   "/actions/monitor",
   validateApiRequest,
+  recaptcha,
   securityController.monitorEndpoint
 );
 router.post(
   "/actions/apply",
   validateApiRequest,
+  recaptcha,
   securityController.applyRecommendation
 );
 

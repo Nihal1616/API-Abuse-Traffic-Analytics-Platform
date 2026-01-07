@@ -24,4 +24,7 @@ console.log("About to start server...");
 
 server.listen(PORT, () => {
   logger.info(`Backend running on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
 });

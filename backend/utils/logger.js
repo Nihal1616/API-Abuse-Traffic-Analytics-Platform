@@ -21,18 +21,18 @@ const logger = winston.createLogger({
       ),
     }),
     // File transport
-    new winston.transports.File({
-      filename: "logs/error.log",
-      level: "error",
-    }),
+    // new winston.transports.File({
+    //   filename: "logs/error.log",
+    //   level: "error",
+    // }),
     // Rotating file transport
-    new DailyRotateFile({
-      filename: "logs/application-%DATE%.log",
-      datePattern: "YYYY-MM-DD",
-      zippedArchive: true,
-      maxSize: "20m",
-      maxFiles: "30d",
-    }),
+    // new DailyRotateFile({
+    //   filename: "logs/application-%DATE%.log",
+    //   datePattern: "YYYY-MM-DD",
+    //   zippedArchive: true,
+    //   maxSize: "20m",
+    //   maxFiles: "30d",
+    // }),
   ],
 });
 

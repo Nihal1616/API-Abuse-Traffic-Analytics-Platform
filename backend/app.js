@@ -63,7 +63,7 @@ const getClientIp = (req) =>
 /** Read-only limiter (dashboard) */
 const readLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 500,
+  max: 30,
   standardHeaders: true,
   legacyHeaders: false,
   keyGenerator: getClientIp,

@@ -8,6 +8,12 @@ import {
   Endpoint,
 } from "@/types/security";
 
+declare global {
+  interface Window {
+    grecaptcha: any;
+  }
+}
+
 const API_BASE_URL = import.meta.env.VITE_API_URL || "/api";
 
 const api = axios.create({
@@ -19,9 +25,22 @@ const api = axios.create({
 });
 
 // Request interceptor
-api.interceptors.request.use((config) => {
+api.interceptors.request.use(async (config) => {
   const token = localStorage.getItem("auth_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
+
+  // Add reCAPTCHA token for POST requests
+  if (config.method?.toUpperCase() === "POST" && window.grecaptcha) {
+    try {
+      const recaptchaToken = await window.grecaptcha.execute(import.meta.env.VITE_RECAPTCHA_SITE_KEY, { action: 'submit' });
+      if (recaptchaToken) {
+        config.data = { ...config.data, recaptchaToken };
+      }
+    } catch (error) {
+      console.error("reCAPTCHA error:", error);
+    }
+  }
+
   return config;
 });
 

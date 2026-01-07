@@ -63,7 +63,7 @@ async function recaptchaMiddleware(req, res, next) {
     (req.body && req.body.recaptchaToken) ||
     req.headers["x-recaptcha-token"] ||
     req.query.recaptchaToken;
-  if (!token) return res.status(400).json({ error: "reCAPTCHA token missing" });
+  if (!token) return res.status(403).json({ error: "reCAPTCHA token missing" });
 
   try {
     const result = await verifyToken(token);

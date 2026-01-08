@@ -16,6 +16,7 @@ A comprehensive security monitoring platform for detecting and preventing API ab
 ## 🏗️ Architecture
 
 ### Backend (Node.js/Express)
+
 - RESTful API with security middleware
 - MongoDB for data storage
 - Socket.IO for real-time updates
@@ -23,6 +24,7 @@ A comprehensive security monitoring platform for detecting and preventing API ab
 - Rate limiting and abuse detection
 
 ### Frontend (React/TypeScript)
+
 - Modern dashboard with Tailwind CSS
 - Real-time charts and metrics
 - Threat actor monitoring
@@ -37,13 +39,16 @@ A comprehensive security monitoring platform for detecting and preventing API ab
 ## 🚀 Quick Start
 
 ### 1. Clone the Repository
+
 ```bash
 git clone <repository-url>
 cd API-Abuse-Traffic-Analytics-Platform
 ```
 
 ### 2. Backend Setup
+
 If running locally:
+
 ```bash
 cd backend
 cp .env.example .env
@@ -54,11 +59,13 @@ npm start
 ```
 
 For deployment on Render:
+
 - Connect your GitHub repo to Render
 - Set environment variables in Render dashboard
 - Deploy the backend service
 
 ### 3. Frontend Setup
+
 ```bash
 cd ../frontend
 cp .env.example .env
@@ -67,13 +74,29 @@ npm install
 npm run dev
 ```
 
+### Client reCAPTCHA guidance
+
+- Set `RECAPTCHA_SECRET` in backend environment for server verification.
+- On the frontend, load reCAPTCHA (v3 or v2) and store the resulting token as `window.__recaptchaToken` or in `localStorage` under `recaptcha_token`.
+- The frontend `api` client automatically attaches the token as the `x-recaptcha-token` header for all `POST /api` requests.
+
+Example (v3) flow:
+
+1. Load reCAPTCHA and execute: `grecaptcha.execute(siteKey, {action: 'submit'})`.
+2. Store token in client: `window.__recaptchaToken = token; localStorage.setItem('recaptcha_token', token);`.
+3. Send POST request as usual — the token will be attached automatically by the client.
+
+If you need to exempt routes from reCAPTCHA (for testing), set `RECAPTCHA_EXEMPT_ROUTES` in backend `.env` as a comma-separated list of regex patterns (e.g. `^/api/metrics, ^/api/health`).
+
 ### 4. Access the Application
+
 - Frontend: http://localhost:5173 (local) or your deployed frontend URL
 - Backend API: http://localhost:4000 (local) or your Render backend URL
 
 ## ⚙️ Environment Variables
 
 ### Backend (.env)
+
 ```env
 # Required
 MONGODB_URI=mongodb://localhost:27017/api-shield  # Use MongoDB Atlas for production
@@ -88,12 +111,14 @@ LOG_LEVEL=info
 ```
 
 ### Frontend (.env)
+
 ```env
 VITE_API_URL=http://localhost:4000/api  # Use your Render backend URL for production
 VITE_SOCKET_URL=http://localhost:4000   # Use your Render backend URL for production
 ```
 
 ### Production Deployment Notes
+
 - For Render deployment, set environment variables in the Render dashboard
 - Use MongoDB Atlas for database in production
 - **Whitelist Render outbound IPs in MongoDB Atlas**: Add these IP ranges to your MongoDB Atlas network access:
@@ -108,12 +133,14 @@ VITE_SOCKET_URL=http://localhost:4000   # Use your Render backend URL for produc
 ### Quick Start with Docker Compose
 
 1. **Setup environment variables:**
+
    ```bash
    cp .env.docker .env
    # Edit .env with your secure passwords and secrets
    ```
 
 2. **Start all services:**
+
    ```bash
    docker-compose up -d
    ```
@@ -126,11 +153,13 @@ VITE_SOCKET_URL=http://localhost:4000   # Use your Render backend URL for produc
 ### Development with Docker
 
 For development with hot reloading:
+
 ```bash
 docker-compose -f docker-compose.yml -f docker-compose.override.yml up -d
 ```
 
 This will start:
+
 - Frontend: http://localhost:5173 (with hot reloading)
 - Backend: http://localhost:4000 (with nodemon)
 - MongoDB: localhost:27017
@@ -139,6 +168,7 @@ This will start:
 ### Production Deployment
 
 For production deployment with Nginx reverse proxy:
+
 ```bash
 docker-compose --profile production up -d
 ```
@@ -155,6 +185,7 @@ docker-compose --profile production up -d
 ### Environment Variables for Docker
 
 Required variables in `.env`:
+
 ```env
 MONGO_ROOT_PASSWORD=your_secure_root_password
 MONGO_PASSWORD=your_secure_app_password
@@ -186,11 +217,13 @@ docker-compose down -v
 ```
 
 ### Core Metrics
+
 - `GET /api/metrics/dashboard` - Dashboard overview
 - `GET /api/metrics/security/blocked` - Blocked requests
 - `GET /api/security/traffic` - Traffic analysis
 
 ### Security Actions
+
 - `POST /api/security/actions/block` - Block IP addresses
 - `GET /api/security/threat-actors` - Threat actor list
 

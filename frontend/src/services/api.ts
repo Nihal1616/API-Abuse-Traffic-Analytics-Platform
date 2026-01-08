@@ -28,19 +28,6 @@ const api = axios.create({
 api.interceptors.request.use(async (config) => {
   const token = localStorage.getItem("auth_token");
   if (token) config.headers.Authorization = `Bearer ${token}`;
-
-  // Add reCAPTCHA token for POST requests
-  if (config.method?.toUpperCase() === "POST" && window.grecaptcha) {
-    try {
-      const recaptchaToken = await window.grecaptcha.execute(import.meta.env.VITE_RECAPTCHA_SITE_KEY, { action: 'submit' });
-      if (recaptchaToken) {
-        config.data = { ...config.data, recaptchaToken };
-      }
-    } catch (error) {
-      console.error("reCAPTCHA error:", error);
-    }
-  }
-
   return config;
 });
 

@@ -1,4 +1,4 @@
-version: '3.8'
+version: "3.8"
 
 services:
   # MongoDB database
@@ -6,7 +6,7 @@ services:
     image: mongo:6.0
     container_name: api-shield-mongodb
     ports:
-      - "27018:27017"  # Changed from 27017 to 27018 to avoid conflict
+      - "27018:27017" # Changed from 27017 to 27018 to avoid conflict
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=${MONGO_ROOT_PASSWORD}
@@ -98,6 +98,7 @@ services:
       - ./backend/config/nginx.conf:/etc/nginx/nginx.conf
       - ./backend/config/security-headers.conf:/etc/nginx/security-headers.conf
       - ./backend/config/rate-limiting.conf:/etc/nginx/rate-limiting.conf
+      - ./backend/config/rate-limiting-zones.conf:/etc/nginx/rate-limiting-zones.conf
       - ./backend/logs/nginx:/var/log/nginx
       - ./ssl:/etc/ssl/certs
     depends_on:

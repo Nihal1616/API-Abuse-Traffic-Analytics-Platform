@@ -132,7 +132,7 @@ export function AnomalyTimeline({ events }: AnomalyTimelineProps) {
                 <p className="text-sm">{event.recommendation}</p>
               </div>
 
-              {event.collateralDamage.legitimateTrafficPercent > 0 && (
+              {event.collateralDamage && event.collateralDamage.legitimateTrafficPercent > 0 && (
                 <div className="mt-2 flex items-center gap-2 text-xs text-warning">
                   <AlertTriangle className="h-3 w-3" />
                   <span>

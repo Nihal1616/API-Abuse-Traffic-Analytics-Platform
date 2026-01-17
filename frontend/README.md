@@ -1,53 +1,125 @@
-# Welcome to your Lovable project
+# API Abuse Traffic Analytics Platform - Frontend
 
-## Project info
+A modern React dashboard for visualizing API traffic patterns, security metrics, and threat intelligence.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+## Features
 
-## How can I edit this code?
+- Real-time dashboard with live metrics
+- Interactive traffic charts and graphs
+- Threat actor monitoring
+- Anomaly detection visualization
+- Responsive design with Tailwind CSS
+- WebSocket real-time updates
 
-There are several ways of editing your application.
+## Prerequisites
 
-**Use Lovable**
+- Node.js (v16 or higher)
+- Backend API server running
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+## Installation
 
-Changes made via Lovable will be committed automatically to this repo.
+1. Clone the repository
+2. Navigate to the frontend directory
+3. Install dependencies:
+   ```bash
+   npm install
+   ```
 
-**Use your preferred IDE**
+## Environment Variables
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. Copy the example environment file:
+   ```bash
+   cp .env.example .env
+   ```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. Configure your environment variables in `.env`:
 
-Follow these steps:
+   ### Development (Default)
+   ```env
+   VITE_API_URL=http://localhost:4000/api
+   VITE_SOCKET_URL=http://localhost:4000
+   ```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+   ### Production
+   ```env
+   VITE_API_URL=https://your-api-domain.com/api
+   VITE_SOCKET_URL=https://your-api-domain.com
+   ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+## Running the Application
 
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+### Development
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+### Production Build
+```bash
+npm run build
+npm run preview
+```
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Tech Stack
 
-**Use GitHub Codespaces**
+- **React 18** - UI framework
+- **TypeScript** - Type safety
+- **Vite** - Build tool and dev server
+- **Tailwind CSS** - Styling
+- **Lucide React** - Icons
+- **Socket.IO** - Real-time communication
+- **Recharts** - Data visualization
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
+## Project Structure
+
+```
+frontend/
+├── public/          # Static assets
+├── src/
+│   ├── components/  # Reusable UI components
+│   │   ├── dashboard/  # Dashboard-specific components
+│   │   └── ui/         # Generic UI components
+│   ├── pages/       # Page components
+│   ├── services/    # API and WebSocket services
+│   ├── types/       # TypeScript type definitions
+│   ├── hooks/       # Custom React hooks
+│   └── lib/         # Utilities and configurations
+└── types/           # Shared type definitions
+```
+
+## Key Components
+
+- **Dashboard**: Main metrics overview
+- **TrafficChart**: Real-time traffic visualization
+- **ThreatActorsList**: IP threat monitoring
+- **AnomalyTimeline**: Security event timeline
+- **MetricCard**: Reusable metric display
+
+## Development Scripts
+
+```bash
+npm run dev          # Start development server
+npm run build        # Build for production
+npm run preview      # Preview production build
+npm run lint         # Run ESLint
+```
+
+## Environment Setup for Team Development
+
+1. Each developer should copy `.env.example` to `.env`
+2. Configure personal API endpoints if needed
+3. Never commit `.env` files (already in .gitignore)
+4. Use different ports if running multiple instances
+
+## Contributing
+
+1. Follow the existing code style
+2. Use TypeScript for type safety
+3. Test components thoroughly
+4. Follow React best practices
+
+## License
+
+MIT License
 - Edit files directly within the Codespace and commit and push your changes once you're done.
 
 ## What technologies are used for this project?

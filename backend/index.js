@@ -1,56 +1,30 @@
-const app = require("./app");
+console.log("Starting backend...");
+
 const http = require("http");
 const socketIo = require("socket.io");
+const app = require("./app");
 const logger = require("./utils/logger");
-require("dotenv").config();
 
-
-const PORT = process.env.PORT || 4000;
 const server = http.createServer(app);
 
-// Socket.io for real-time updates
 const io = socketIo(server, {
-  cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:8080",
-    credentials: true,
-  },
-  transports: ["websocket", "polling"],
+  cors: { origin: ["http://localhost:5173"], credentials: true },
 });
 
-// Attach io to app for use in routes
 app.set("io", io);
 
-// Real-time security events
 io.on("connection", (socket) => {
-  logger.info(`Client connected: ${socket.id}`);
-
-  socket.on("subscribe", (channel) => {
-    socket.join(channel);
-    logger.info(`Client ${socket.id} subscribed to ${channel}`);
-  });
-
-  socket.on("unsubscribe", (channel) => {
-    socket.leave(channel);
-  });
-
-  socket.on("disconnect", () => {
-    logger.info(`Client disconnected: ${socket.id}`);
-  });
+  logger.info(`Socket connected: ${socket.id}`);
+  socket.on("disconnect", () => logger.info(`Socket disconnected: ${socket.id}`));
 });
 
-// Global error handler
-process.on("unhandledRejection", (reason, promise) => {
-  logger.error("Unhandled Rejection at:", promise, "reason:", reason);
-});
+const PORT = process.env.PORT || 4000;
 
-process.on("uncaughtException", (error) => {
-  logger.error("Uncaught Exception:", error);
-  process.exit(1);
-});
+console.log("About to start server...");
 
 server.listen(PORT, () => {
-  logger.info(`API Shield Backend running on port ${PORT}`);
-  logger.info(`Environment: ${process.env.NODE_ENV || "development"}`);
+  logger.info(`Backend running on port ${PORT}`);
+}).on('error', (err) => {
+  console.error('Server error:', err);
+  process.exit(1);
 });
-
-module.exports = server;
